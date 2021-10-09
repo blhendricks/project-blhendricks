@@ -107,7 +107,7 @@ function set_volume_attributes(volume, attributes)
 
         volume_full = pi*(rmax^2 - rmin^2)*(zmax - zmin)
         # increase total # of events so we have same amount in fiducial vol
-        n_events = round(Int32, n_events*volume_full / volume_fiducial)
+        n_events = round(BigInt, n_events*volume_full / volume_fiducial)
         attributes["n_events"] = n_events
 
         attributes["rmin"] = rmin
@@ -143,7 +143,7 @@ function set_volume_attributes(volume, attributes)
         end
 
         volume_full = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
-        n_events = round(Int32, n_events * volume_full / volume_fiducial)
+        n_events = round(BigInt, n_events * volume_full / volume_fiducial)
         attributes["n_events"] = n_events
 
         attributes["xmin"] = xmin
@@ -163,11 +163,6 @@ function set_volume_attributes(volume, attributes)
 
     return attributes
 end
-
-#vol = Dict{String, Float64}("fiducial_rmin" => 50, "fiducial_rmax" => 100, "fiducial_zmin" => 50, "fiducial_zmax" => 100)
-att = Dict{String, Float64}("n_events" => 10, "fiducial_rmin" => 50, "fiducial_rmax" => 100, "fiducial_zmin" => 50, "fiducial_zmax" => 100, "rmin" => 10, "rmax" => 15, "zmin" => 10, "zmax" => 15)
-#attributes = set_volume_attributes(vol, att)
-n_events = 10
 
 function generate_vertex_positions(attributes, n_events)
     """
@@ -209,6 +204,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     t_start = time()
     #attributes = Dict{String, Float64}()
     attributes = Dict()
+    n_events = BigInt(n_events)
 
     attributes["start_event_id"] = start_event_id
     attributes["n_events"] = n_events
@@ -229,10 +225,10 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     attributes = set_volume_attributes(volume, attributes)
     n_events = attributes["n_events"]
-    n_batches = round(Int32, ceil(n_events / max_n_events_batch))
+    n_batches = round(BigInt, ceil(n_events / max_n_events_batch))
     for i_batch in 1:n_batches
         data_sets = Dict()
-        n_events_batch = round(Int32, max_n_events_batch)
+        n_events_batch = round(BigInt, max_n_events_batch)
 
         if (i_batch + 1) == n_batches
             n_events_batch = n_events - (i_batch * max_n_events_batch)
@@ -246,7 +242,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         data_sets["zeniths"] = asin.(rand(Uniform(sin(thetamin)^2, sin(thetamax)^2), n_events_batch)).^0.5
 
         data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch-1)).+start_event_id
-        data_sets["n_interaction"] = ones(Int32, n_events_batch)
+        data_sets["n_interaction"] = ones(BigInt, n_events_batch)
         data_sets["vertex_times"] = zeros(Float64, n_events_batch)
 
         #generate neutrino flavors randomly
@@ -313,7 +309,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     return data_sets_fiducial, attributes
 end
 
-vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 50, "fiducial_zmin" => 0, "fiducial_zmax" => 20)
-data, att = generate_eventlist_cylinder(10, 10, 50, vol)
+vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
+data, att = generate_eventlist_cylinder(1e10, 1e18, 1e19, vol)
 
-print(att)
+#Check what happens when Emax not greater than Emin
