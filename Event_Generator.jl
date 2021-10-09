@@ -1,5 +1,70 @@
 
 using Distributions
+using Interpolations
+
+function get_neutrino_inelasticity(n_events)
+    """
+    Standard inelasticity for deep inelastic scattering
+    """
+    R1 = 0.36787944
+    R2 = 0.63212056
+    inelasticities = (-log.(R1 .+ (rand(Uniform(0.0, 1.0), n_events).*R2))).^2.5
+    return inelasticities
+end
+
+function get_energy_from_flux(Emin, Emax, n_events, flux)
+    xx_edges = collect(range(Emin, Emax, 10000000))
+    xx = 0.5 * (xx_edges[2:end] .+ xx_edges[1:(end-1)])
+    yy = flux(xx)
+    cum_values = zeros(size(xx_edges))
+    cum_values[2:end] = cumsum(yy * diff(xx_edges))
+    inv_cdf = LinearInterpolation(cum_values, xx_edges)
+    r = rand(Uniform(0, maximum(cum_values)), n_events)
+    return inv_cdf(r)
+end
+
+function get_energies(n_events, Emin, Emax, spectrum_type)
+    """
+    Generates a random distribution of energies following a certain spectrum
+
+    Params
+    Emin, Emax: float
+    n_event: int
+    flux: function
+    """
+
+    if spectrum_type == "log_uniform"
+        energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
+    elseif startswith(spectrum_type, "E-") # generate an E^gamma spectrum
+        gamma = float(spectrum_type[2:end])
+        gamma += 1
+        Nmin = (Emin)^gamma
+        Nmax = (Emax)^gamma
+
+        function get_inverse_spectrum(N, gamma)
+            return exp(log(N)/gamma)
+        end
+
+        energies = get_inverse_spectrum(rand(Uniform(Nmax, Nmin), n_events), gamma)
+
+    elseif spectrum_type == "GZK-1"
+        energies = get_energy_from_flux(Emin, Emax, n_events, get_GZK_1)
+    elseif spectrum_type == "IceCube-nu-2017"
+        energies = get_energy_from_flux(Emin, Emax, n_events, ice_cube_nu_fit)
+    elseif spectrum_type == "GZK-1+IceCube-nu-2017"
+
+        function J(E)
+            return ice_cube_nu_fit(E) + get_GZK_1(E)
+        end
+
+        energies = get_energy_from_flux(Emin, Emax, n_events, J)
+    else
+        println("Passed spectrum not implemented.")
+        throw(DomainError())
+        #throw("unimplemented") more appropriate?
+    end
+    return energies
+end
 
 function set_volume_attributes(volume, attributes)
     """
@@ -102,14 +167,14 @@ end
 #vol = Dict{String, Float64}("fiducial_rmin" => 50, "fiducial_rmax" => 100, "fiducial_zmin" => 50, "fiducial_zmax" => 100)
 att = Dict{String, Float64}("n_events" => 10, "fiducial_rmin" => 50, "fiducial_rmax" => 100, "fiducial_zmin" => 50, "fiducial_zmax" => 100, "rmin" => 10, "rmax" => 15, "zmin" => 10, "zmax" => 15)
 #attributes = set_volume_attributes(vol, att)
-#println(attributes)
 n_events = 10
 
-function generate_vertex_positions(attributes, n_events, rnd=nothing)
+function generate_vertex_positions(attributes, n_events)
     """
     Generates vertex positions randomly distributed in simulation volume
     and outputs relevent quantities.
     """
+
     if (haskey(attributes, "fiducial_rmax"))
         rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
         phiphi = rand(Uniform(0, 2*pi), n_events)
@@ -128,9 +193,9 @@ function generate_vertex_positions(attributes, n_events, rnd=nothing)
     end
 end
 
-generate_vertex_positions(att, n_events)
+#generate_vertex_positions(att, n_events)
 
-function generate_eventlist_cylinder(filename, n_events, Emin, Emax, volume,
+function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     thetamin=0, thetamax = pi, phimin=0, phimax=2*pi, start_event_id=1,
     flavor=[12,-12,14,-14,16,-16], n_events_per_file=nothing,
     spectrum="log_uniform", start_file_id=0, max_n_events_batch=1e5,
@@ -142,7 +207,8 @@ function generate_eventlist_cylinder(filename, n_events, Emin, Emax, volume,
     """
 
     t_start = time()
-    attributes = Dict{String, Float64}()
+    #attributes = Dict{String, Float64}()
+    attributes = Dict()
 
     attributes["start_event_id"] = start_event_id
     attributes["n_events"] = n_events
@@ -159,6 +225,95 @@ function generate_eventlist_cylinder(filename, n_events, Emin, Emax, volume,
 
     time_proposal = 0
 
-    attributes = set_volume_attributes(volume, attributes)
+    #n_events_batch = round(Int32, n_events_batch)
 
+    attributes = set_volume_attributes(volume, attributes)
+    n_events = attributes["n_events"]
+    n_batches = round(Int32, ceil(n_events / max_n_events_batch))
+    for i_batch in 1:n_batches
+        data_sets = Dict()
+        n_events_batch = round(Int32, max_n_events_batch)
+
+        if (i_batch + 1) == n_batches
+            n_events_batch = n_events - (i_batch * max_n_events_batch)
+        end
+        data_sets["xx"], data_sets["yy"], data_sets["zz"] = generate_vertex_positions(attributes, n_events_batch)
+        data_sets["zz"] = zero(data_sets["zz"]) #muons interact at the surface so zz => 0
+
+        # generate neutrino vertices randomly
+        data_sets["azimuths"] = rand(Uniform(phimin, phimax), n_events_batch)
+        # zenith directions are distributed as sin(theta) (to make dist. isotropic) * cos(theta) (to acc for projection onto surf)
+        data_sets["zeniths"] = asin.(rand(Uniform(sin(thetamin)^2, sin(thetamax)^2), n_events_batch)).^0.5
+
+        data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch-1)).+start_event_id
+        data_sets["n_interaction"] = ones(Int32, n_events_batch)
+        data_sets["vertex_times"] = zeros(Float64, n_events_batch)
+
+        #generate neutrino flavors randomly
+        data_sets["flavors"] = flavor[rand(1:end, n_events_batch)]
+        #generate neutrino energies randomly
+        data_sets["energies"] = get_energies(n_events_batch, Emin, Emax, spectrum)
+        #generate charged/neutral current randomly
+        """ Inelasticities library not converted to Julia yet
+        if interaction_type == "ccnc"
+            data_sets["interaction_type"] = inelasticities.get_ccnc(n_events_batch)
+        """
+        if interaction_type == "cc"
+            data_sets["interaction_type"] = repeat(["cc"], outer=[n_events_batch])
+        elseif interaction_type == "nc"
+            data_sets["interaction_type"] = repeat(["nc"], outer=[n_events_batch])
+        end
+
+        #generate inelasticity
+        data_sets["inelasticity"] = get_neutrino_inelasticity(n_events_batch)
+        """
+        This EM shower portion will be added later
+
+        #add EM showers if appropriate
+        em_shower_mask = (data_sets["interaction_type"] == "cc") & (abs.(data_sets["flavors"]) == 12)
+
+        n_inserted = 0
+        if em_shower_mask == true #loop over all events where EM shower needs to be inserted
+            for i in collect(range(1, step=1, n_events_batch))
+                for key in data_sets
+                    data_sets[key]
+        """
+    end
+
+    time_per_evt = time_proposal / (n_events + 1)
+
+    # assign every shower a unique ID
+    """
+    data_sets_fiducial["shower_ids"] = collect(range(0, step=1, length(data_sets_fiducial["shower_energies"])))
+    """
+    # make event group ids consecutive - useful if secondary interactions simulated
+    # where many of the initially generated neutrinos don't end up in fiducial vol
+    for (key, value) in data_sets
+        if key ∉ keys(data_sets_fiducial)
+            data_sets_fiducial[key] = data_sets[key]
+        end
+    end
+    egids = data_sets_fiducial["event_group_ids"]
+    uegids = unique(egids)
+    uegids_inverse = []
+    for value in egids
+        if value in uegids
+            append!(uegids_inverse, findall(x -> x == value, uegids)[1])
+        end
+    end
+
+    data_sets_fiducial["event_group_ids"] = uegids_inverse .+ start_event_id
+    """
+    Will put in option to write to file later
+    if(write_events): ...
+
+    for (key, value) in
+    """
+
+    return data_sets_fiducial, attributes
 end
+
+vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 50, "fiducial_zmin" => 0, "fiducial_zmax" => 20)
+data, att = generate_eventlist_cylinder(10, 10, 50, vol)
+
+print(att)
