@@ -137,11 +137,12 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 """
 
 function generate_eventlist_cylinder()
-
     """
     Generates neutrino interactions (vertex positions, neutrino directions,
     neutrino flavor, charged/neutral current).
     """
+
+    parsed_args = parse_commandLine()
 
     n_events = parsed_args["n_events"]
     Emin = parsed_args["Emin"]
