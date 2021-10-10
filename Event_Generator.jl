@@ -126,5 +126,8 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     CSV.write("attributes_output.csv", attributes, header=false)
 end
 
+#this describes the volume of the simulation
 vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
+# The paramets in order of the following input are n_events, Emin, Emax,
+# volume (Dict, found above), and interaction_type ("cc", "nc", or "ccnc")
 data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol, "ccnc")
