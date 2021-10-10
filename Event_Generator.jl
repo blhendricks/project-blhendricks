@@ -11,7 +11,7 @@ function parse_commandline()
         "--N"
             help = "The number of neutrino events to be generated"
             arg_type = Int
-            default = BigInt(1e6)
+            default = 10
         "--Emax"
             help = "The maximum neutrino energy (eV)."
             arg_type = Float64
