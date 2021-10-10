@@ -9,10 +9,10 @@ include("./Support_Funcs.jl")
 function parse_commandline()
     s = ArgParseSettings()
     @add_arg_table! s begin
-        "--N"
+        "--n_events"
             help = "The number of neutrino events to be generated"
             arg_type = Int
-            default = 10
+            default = 5
         "--Emax"
             help = "The maximum neutrino energy (eV)."
             arg_type = Float64
@@ -20,7 +20,7 @@ function parse_commandline()
         "--Emin"
             help = "The minimum neutrino energy (eV)"
             arg_type = Float64
-            default = 1e17
+            default = 1e18
         "--spectrum_type"
             help = "Defines probability distribution for which neutrino energies
             are generated"
@@ -80,19 +80,19 @@ function parse_commandline()
         "--thetamin"
             help = "Lower zenith angle for neutrino arrival direction (rad)"
             arg_type = Float64
-            default = 0
+            default = 0.0
         "--thetamax"
             help = "Upper zenith angle for neutrino arrival direction (rad)"
             arg_type = Float64
-            default = 2*pi
+            default = Float64(2*pi)
         "--phimin"
             help = "Lower azimuth angle for neutrino arrival direction (rad)"
             arg_type = Float64
-            default = 0
+            default = 0.0
         "--phimax"
             help = "Upper azimuth angle for neutrino arrival direction (rad)"
             arg_type = Float64
-            default = pi
+            default = Float64(pi)
         "--start_event-id"
             help = "Event number of first event"
             arg_type = Int64
@@ -108,7 +108,7 @@ function parse_commandline()
         "--max_n_events_batch"
             help = "The maximum number of events that get generated per batch.
             Relevant if fiducial volume cut is applied."
-            arg_type = Int64
+            arg_type = BigInt
             default = BigInt(1e6)
         "--write_events"
             help = "Choose whether to write results to a file."
@@ -126,7 +126,8 @@ function parse_commandline()
             help = "Event number of first event"
             arg_type = Int64
             default = 1
-        end
+    end
+
     return parse_args(s)
 end
 
@@ -136,14 +137,14 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
     max_n_events_batch=1e5, write_events= true, interaction_type="cc")
 """
-
-function generate_eventlist_cylinder()
+#function generate_eventlist_cylinder()
+function main()
     """
     Generates neutrino interactions (vertex positions, neutrino directions,
     neutrino flavor, charged/neutral current).
     """
 
-    parsed_args = parse_commandLine()
+    parsed_args = parse_commandline()
 
     n_events = parsed_args["n_events"]
     Emin = parsed_args["Emin"]
@@ -155,7 +156,7 @@ function generate_eventlist_cylinder()
     phimax = parsed_args["phimax"]
     start_event_id = parsed_args["start_event_id"]
     flavor = parsed_args["flavor"]
-    spectrum = parsed_args["spectrum"]
+    spectrum = parsed_args["spectrum_type"]
     max_n_events_batch = parsed_args["max_n_events_batch"]
     write_events = parsed_args["write_events"]
     interaction_type = parsed_args["interaction_type"]
@@ -262,9 +263,11 @@ function generate_eventlist_cylinder()
 
     for (key, value) in
     """
-    print(attributes)
+    #print(attributes)
     return data_sets_fiducial, attributes
 end
+
+main()
 
 #vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
 #data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol)
