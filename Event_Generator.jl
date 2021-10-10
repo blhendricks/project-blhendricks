@@ -1,205 +1,162 @@
 
 using Distributions
 using Interpolations
+using ArgParse
 
-function get_neutrino_inelasticity(n_events)
-    """
-    Standard inelasticity for deep inelastic scattering
-    """
-    R1 = 0.36787944
-    R2 = 0.63212056
-    inelasticities = (-log.(R1 .+ (rand(Uniform(0.0, 1.0), n_events).*R2))).^2.5
-    return inelasticities
+include("./Support_Funcs.jl")
+
+function parse_commandline()
+    s = ArgParseSettings()
+    @add_arg_table! s begin
+        "--N"
+            help = "The number of neutrino events to be generated"
+            arg_type = Int
+            default = BigInt(1e6)
+        "--Emax"
+            help = "The maximum neutrino energy (eV)."
+            arg_type = Float64
+            default = 1e19
+        "--Emin"
+            help = "The minimum neutrino energy (eV)"
+            arg_type = Float64
+            default = 1e17
+        "--spectrum_type"
+            help = "Defines probability distribution for which neutrino energies
+            are generated"
+            arg_type = String
+            default = "log_uniform"
+        "--volume"
+            help = "Dictionary specifying simulation volume. Can be either a
+            cylinder specified via keys
+                *fiducial_rmin: float
+                    lower r coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_rmax: float
+                    upper r coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_zmin: float
+                    lower z coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_zmax: float
+                    upper z coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * full_rmin: float (optional)
+                    lower r coordinate of simulated volume (if not set it is set to 1/3 of the fiducial volume, if second vertices are not activated it is set to the fiducial volume)
+                * full_rmax: float (optional)
+                    upper r coordinate of simulated volume (if not set it is set to the fiducial volume + the 95% quantile of the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_zmin: float (optional)
+                    lower z coordinate of simulated volume (if not set it is set to the fiducial volume - the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_zmax: float (optional)
+                    upper z coordinate of simulated volume (if not set it is set to 1/3 of the fiducial volume , if second vertices are not activated it is set to the fiducial volume)
+            or a cube specified with
+            * fiducial_xmin: float
+                    lower x coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_xmax: float
+                    upper x coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_ymin: float
+                    lower y coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_ymax: float
+                    upper y coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_zmin: float
+                    lower z coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * fiducial_zmax: float
+                    upper z coordinate of fiducial volume (the fiducial volume needs to be chosen large enough such that no events outside of it will trigger)
+                * full_xmin: float (optional)
+                    lower x coordinate of simulated volume (if not set it is set to the fiducial volume - the 95% quantile of the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_xmax: float (optional)
+                    upper x coordinate of simulated volume (if not set it is set to the fiducial volume + the 95% quantile of the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_ymin: float (optional)
+                    lower y coordinate of simulated volume (if not set it is set to the fiducial volume - the 95% quantile of the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_ymax: float (optional)
+                    upper y coordinate of simulated volume (if not set it is set to the fiducial volume + the 95% quantile of the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                * full_zmin: float (optional)
+                    lower z coordinate of simulated volume (if not set it is set to 1/3 of the fiducial volume, if second vertices are not activated it is set to the fiducial volume)
+                * full_zmax: float (optional)
+                    upper z coordinate of simulated volume (if not set it is set to the fiducial volume - the tau decay length, if second vertices are not activated it is set to the fiducial volume)
+                    "
+            arg_type = Dict
+            default = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
+        "--output_name"
+            help = "The name of the output file"
+            arg_type = String
+            default = "output.csv"
+        "--thetamin"
+            help = "Lower zenith angle for neutrino arrival direction (rad)"
+            arg_type = Float64
+            default = 0
+        "--thetamax"
+            help = "Upper zenith angle for neutrino arrival direction (rad)"
+            arg_type = Float64
+            default = 2*pi
+        "--phimin"
+            help = "Lower azimuth angle for neutrino arrival direction (rad)"
+            arg_type = Float64
+            default = 0
+        "--phimax"
+            help = "Upper azimuth angle for neutrino arrival direction (rad)"
+            arg_type = Float64
+            default = pi
+        "--start_event-id"
+            help = "Event number of first event"
+            arg_type = Int64
+            default = 1
+        "--flavor"
+            help = "Array of ints. Specify which neutrino flavors to generate.
+            A uniform distribution of all specified flavors is assumed.
+            *12: electron neutrino
+            *14: muon neutrino
+            *16: tau neutrino"
+            arg_type = Array
+            default = [12,-12,14,-14,16,-16]
+        "--max_n_events_batch"
+            help = "The maximum number of events that get generated per batch.
+            Relevant if fiducial volume cut is applied."
+            arg_type = Int64
+            default = BigInt(1e6)
+        "--write_events"
+            help = "Choose whether to write results to a file."
+            arg_type = Bool
+            default = true
+        "--interaction_type"
+            help = "Interaction type. Default is 'ccnc' which randomly chooses
+            neural current (NC) or charged-current (CC) interactions. User
+            can also specify 'nc' or 'cc' to exclusively simulate NC or CC.
+                * 'cc': charged-current
+                * 'nc': neutral-current"
+            arg_type = String
+            default = "ccnc"
+        "--start_event_id"
+            help = "Event number of first event"
+            arg_type = Int64
+            default = 1
+        end
+    return parse_args(s)
 end
 
-function get_energy_from_flux(Emin, Emax, n_events, flux)
-    xx_edges = collect(range(Emin, Emax, 10000000))
-    xx = 0.5 * (xx_edges[2:end] .+ xx_edges[1:(end-1)])
-    yy = flux(xx)
-    cum_values = zeros(size(xx_edges))
-    cum_values[2:end] = cumsum(yy * diff(xx_edges))
-    inv_cdf = LinearInterpolation(cum_values, xx_edges)
-    r = rand(Uniform(0, maximum(cum_values)), n_events)
-    return inv_cdf(r)
-end
-
-function get_energies(n_events, Emin, Emax, spectrum_type)
-    """
-    Generates a random distribution of energies following a certain spectrum
-
-    Params
-    Emin, Emax: float
-    n_event: int
-    flux: function
-    """
-
-    if spectrum_type == "log_uniform"
-        energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
-    elseif startswith(spectrum_type, "E-") # generate an E^gamma spectrum
-        gamma = float(spectrum_type[2:end])
-        gamma += 1
-        Nmin = (Emin)^gamma
-        Nmax = (Emax)^gamma
-
-        function get_inverse_spectrum(N, gamma)
-            return exp(log(N)/gamma)
-        end
-
-        energies = get_inverse_spectrum(rand(Uniform(Nmax, Nmin), n_events), gamma)
-
-    elseif spectrum_type == "GZK-1"
-        energies = get_energy_from_flux(Emin, Emax, n_events, get_GZK_1)
-    elseif spectrum_type == "IceCube-nu-2017"
-        energies = get_energy_from_flux(Emin, Emax, n_events, ice_cube_nu_fit)
-    elseif spectrum_type == "GZK-1+IceCube-nu-2017"
-
-        function J(E)
-            return ice_cube_nu_fit(E) + get_GZK_1(E)
-        end
-
-        energies = get_energy_from_flux(Emin, Emax, n_events, J)
-    else
-        println("Passed spectrum not implemented.")
-        throw(DomainError())
-        #throw("unimplemented") more appropriate?
-    end
-    return energies
-end
-
-function set_volume_attributes(volume, attributes)
-    """
-    Interprets volume input.
-    volume: dictionary
-    proposal: bool
-    attributes: dictionary
-    """
-    n_events = attributes["n_events"]
-
-    if (haskey(volume, "fiducial_rmax")) #user specifies a cylinder
-        if (haskey(volume, "fiducial_rmin"))
-            attributes["fiducial_rmin"] = volume["fiducial_rmin"]
-        else
-            attributes["fiducial_rmin"] = 0
-        end
-
-        attributes["fiducial_rmax"] = volume["fiducial_rmax"]
-        attributes["fiducial_zmin"] = volume["fiducial_zmin"]
-        attributes["fiducial_zmax"] = volume["fiducial_zmax"]
-
-        rmin = attributes["fiducial_rmin"]
-        rmax = attributes["fiducial_rmax"]
-        zmin = attributes["fiducial_zmin"]
-        zmax = attributes["fiducial_zmax"]
-        volume_fiducial = pi*(rmax^2 - rmin^2)*(zmax - zmin)
-
-        if (haskey(volume, "full_rmax"))
-            rmax = volume["full_rmax"]
-        end
-        if (haskey(volume, "full_rmin"))
-            rmin = volume["full_rmin"]
-        end
-        if (haskey(volume, "full_zmax"))
-            zmax = volume["full_zmax"]
-        end
-        if (haskey(volume, "full_zmin"))
-            zmin = volume["full_zmin"]
-        end
-
-        volume_full = pi*(rmax^2 - rmin^2)*(zmax - zmin)
-        # increase total # of events so we have same amount in fiducial vol
-        n_events = round(BigInt, n_events*volume_full / volume_fiducial)
-        attributes["n_events"] = n_events
-
-        attributes["rmin"] = rmin
-        attributes["rmax"] = rmax
-        attributes["zmin"] = zmin
-        attributes["zmax"] = zmax
-
-        V = pi*(rmax^2 - rmin^2)*(zmax - zmin)
-        attributes["volume"]  = V #save full sim vol to simplify eff vol calc
-        attributes["area"] = pi*(rmax^2 - rmin^2)
-    elseif (haskey(volume, "fiducial_xmax")) #user specifies a cube
-        attributes["fiducial_xmax"] = volume["fiducial_xmax"]
-        attributes["fiducial_xmin"] = volume["fiducial_xmin"]
-        attributes["fiducial_ymax"] = volume["fiducial_ymax"]
-        attributes["fiducial_ymin"] = volume["fiducial_ymin"]
-        attributes["fiducial_zmin"] = volume["fiducial_zmin"]
-        attributes["fiducial_zmax"] = volume["fiducial_zmax"]
-
-        xmin = attributes["fiducial_xmin"]
-        xmax = attributes["fiducial_xmax"]
-        ymin = attributes["fiducial_ymin"]
-        ymax = attributes["fiducial_ymax"]
-        zmin = attributes["fiducial_zmin"]
-        zmax = attributes["fiducial_zmax"]
-        volume_fiducial = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
-        if (haskey(volume, "full_xmax"))
-            xmin = volume["full_xmin"]
-            xmax = volume["full_xmax"]
-            ymin = volume["full_ymin"]
-            ymax = volume["full_ymax"]
-            zmin = volume["full_zmin"]
-            zmax = volume["full_zmax"]
-        end
-
-        volume_full = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
-        n_events = round(BigInt, n_events * volume_full / volume_fiducial)
-        attributes["n_events"] = n_events
-
-        attributes["xmin"] = xmin
-        attributes["xmax"] = xmax
-        attributes["ymin"] = ymin
-        attributes["ymax"] = ymax
-        attributes["zmin"] = zmin
-        attributes["zmax"] = zmax
-
-        V = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
-        attributes["volume"] = V  # save full sim vol to simplify eff vol calc
-        attributes["area"] = (xmax - xmin) * (ymax - ymin)
-    else
-        println("'fiducial_rmin' or 'fiducial_rmax' not part of 'attributes'")
-        throw(DomainError())
-    end
-
-    return attributes
-end
-
-function generate_vertex_positions(attributes, n_events)
-    """
-    Generates vertex positions randomly distributed in simulation volume
-    and outputs relevent quantities.
-    """
-
-    if (haskey(attributes, "fiducial_rmax"))
-        rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
-        phiphi = rand(Uniform(0, 2*pi), n_events)
-        xx = rr_full .* cos.(phiphi)
-        yy = rr_full .* sin.(phiphi)
-        zz = rand(Uniform(attributes["zmin"], attributes["zmax"]), n_events)
-        return xx, yy, zz
-    elseif (haskey(attributes, "fiducial_xmax"))
-        xx = rand(Uniform(attributes["xmin"], attributes["xmax"]), n_events)
-        yy = rand(Uniform(attributes["ymin"], attributes["ymax"]), n_events)
-        zz = rand(Uniform(attributes["zmin"], attributes["zmax"]), n_events)
-        return xx, yy, zz
-    else
-        println("'fiducial_rmin' or 'fiducial_rmax' not part of 'attributes'")
-        throw(DomainError())
-    end
-end
-
-#generate_vertex_positions(att, n_events)
-
+"""
 function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     thetamin=0, thetamax = pi, phimin=0, phimax=2*pi, start_event_id=1,
-    flavor=[12,-12,14,-14,16,-16], n_events_per_file=nothing,
-    spectrum="log_uniform", start_file_id=0, max_n_events_batch=1e5,
-    write_events= true, seed=nothing, interaction_type="ccnc")
+    flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
+    max_n_events_batch=1e5, write_events= true, interaction_type="cc")
+"""
+
+function generate_eventlist_cylinder()
 
     """
     Generates neutrino interactions (vertex positions, neutrino directions,
     neutrino flavor, charged/neutral current).
     """
+
+    n_events = parsed_args["n_events"]
+    Emin = parsed_args["Emin"]
+    Emax = parsed_args["Emax"]
+    volume = parsed_args["volume"]
+    thetamin = parsed_args["thetamin"]
+    thetamax = parsed_args["thetamax"]
+    phimin = parsed_args["phimin"]
+    phimax = parsed_args["phimax"]
+    start_event_id = parsed_args["start_event_id"]
+    flavor = parsed_args["flavor"]
+    spectrum = parsed_args["spectrum"]
+    max_n_events_batch = parsed_args["max_n_events_batch"]
+    write_events = parsed_args["write_events"]
+    interaction_type = parsed_args["interaction_type"]
 
     t_start = time()
     #attributes = Dict{String, Float64}()
@@ -250,11 +207,9 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         #generate neutrino energies randomly
         data_sets["energies"] = get_energies(n_events_batch, Emin, Emax, spectrum)
         #generate charged/neutral current randomly
-        """ Inelasticities library not converted to Julia yet
         if interaction_type == "ccnc"
-            data_sets["interaction_type"] = inelasticities.get_ccnc(n_events_batch)
-        """
-        if interaction_type == "cc"
+            data_sets["interaction_type"] = get_ccnc(n_events_batch)
+        elseif interaction_type == "cc"
             data_sets["interaction_type"] = repeat(["cc"], outer=[n_events_batch])
         elseif interaction_type == "nc"
             data_sets["interaction_type"] = repeat(["nc"], outer=[n_events_batch])
@@ -309,7 +264,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     return data_sets_fiducial, attributes
 end
 
-vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
-data, att = generate_eventlist_cylinder(1e10, 1e18, 1e19, vol)
+#vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
+#data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol)
 
 #Check what happens when Emax not greater than Emin
