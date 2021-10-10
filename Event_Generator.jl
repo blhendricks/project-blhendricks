@@ -3,6 +3,8 @@
 using Distributions
 using Interpolations
 using ArgParse
+using CSV, Tables
+using DataFrames
 
 include("./Support_Funcs.jl")
 
@@ -119,12 +121,10 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     for (key, value) in
     """
-    #print(attributes)
-    return data_sets_fiducial, attributes
+
+    CSV.write("data_output.csv", data_sets_fiducial, header=false)
+    CSV.write("attributes_output.csv", attributes, header=false)
 end
 
 vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
 data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol)
-print(data["energies"])
-
-#Check what happens when Emax not greater than Emin
