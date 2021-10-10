@@ -127,4 +127,5 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 end
 
 vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
-data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol, "ccnc")
+data, att = generate_eventlist_cylinder(n_events=10, Emin=1e18, Emax=1e19,
+    volume=vol, interaction_type="ccnc")
