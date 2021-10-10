@@ -10,9 +10,9 @@ include("./Support_Funcs.jl")
 
 
 function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
-    thetamin=0, thetamax = pi, phimin=0, phimax=2*pi, start_event_id=1,
-    flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
-    max_n_events_batch=1e5, write_events= true, interaction_type="cc")
+    interaction_type, thetamin=0, thetamax = pi, phimin=0, phimax=2*pi,
+    start_event_id=1, flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
+    max_n_events_batch=1e5, write_events= true)
 
     """
     Generates neutrino interactions (vertex positions, neutrino directions,
@@ -127,4 +127,4 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 end
 
 vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
-data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol)
+data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol, "ccnc")
