@@ -260,7 +260,7 @@ function generate_eventlist_cylinder()
 
     for (key, value) in
     """
-
+    print(attributes)
     return data_sets_fiducial, attributes
 end
 
