@@ -1,5 +1,8 @@
 #!/usr/bin/julia
+module Event_Gen
+export generate_eventlist_cylinder
 
+using Revise
 using Distributions
 using Interpolations
 using ArgParse
@@ -8,16 +11,15 @@ using DataFrames
 
 include("./Support_Funcs.jl")
 
+"""
+Generates neutrino interactions (vertex positions, neutrino directions,
+neutrino flavor, charged/neutral current).
+"""
 
 function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
-    interaction_type, thetamin=0, thetamax = pi, phimin=0, phimax=2*pi,
+    interaction_type, thetamin=0, thetamax = 1*pi, phimin=0, phimax=2*pi,
     start_event_id=1, flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
     max_n_events_batch=1e5, write_events= true)
-
-    """
-    Generates neutrino interactions (vertex positions, neutrino directions,
-    neutrino flavor, charged/neutral current).
-    """
 
     t_start = time()
     #attributes = Dict{String, Float64}()
@@ -44,13 +46,15 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     attributes = set_volume_attributes(volume, attributes)
     n_events = attributes["n_events"]
     n_batches = round(Int, ceil(n_events / max_n_events_batch))
-    for i_batch in 1:n_batches
+
+    for i_batch in 0:(n_batches - 1)
         data_sets = Dict()
         n_events_batch = round(Int, max_n_events_batch)
 
-        if (i_batch + 1) == n_batches
-            n_events_batch = n_events - (i_batch * max_n_events_batch)
+        if (i_batch + 1 == n_batches)
+            n_events_batch = round(Int, n_events - (i_batch * max_n_events_batch))
         end
+
         data_sets["xx"], data_sets["yy"], data_sets["zz"] = generate_vertex_positions(attributes, n_events_batch)
         data_sets["zz"] = zero(data_sets["zz"]) #muons interact at the surface so zz => 0
 
@@ -78,21 +82,47 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
         #generate inelasticity
         data_sets["inelasticity"] = get_neutrino_inelasticity(n_events_batch)
-        """
-        This EM shower portion will be added later
 
-        #add EM showers if appropriate
-        em_shower_mask = (data_sets["interaction_type"] == "cc") & (abs.(data_sets["flavors"]) == 12)
+        data_sets["shower_energies"] = data_sets["energies"] .* data_sets["inelasticity"]
+
+        data_sets["shower_type"] = repeat(["had"], n_events_batch)
+
+        # now add EM showers if appropriate
+        print(data_sets["flavors"])
+
+        allequal_1(x) = all(y->y==x[1],x)
+        first_check = allequal_1((data_sets["interaction_type"] .== "cc")) & (data_sets["interaction_type"] .== "cc")[1] == 1
+        second_check =  allequal_1((abs.(data_sets["flavors"]) .== 12)) & (abs.(data_sets["flavors"]) .== 12)[1] == 1
+        em_shower_mask = first_check & second_check
 
         n_inserted = 0
-        if em_shower_mask == true #loop over all events where EM shower needs to be inserted
-            for i in collect(range(1, step=1, n_events_batch))
+        if em_shower_mask
+            for i in 0:(n_events_batch - 1)  # loop over all events where an EM shower needs to be inserted
                 for key in data_sets
-                    data_sets[key]
-        """
+                    #data_sets[key].insert((i+1) + 1 + n_inserted, data_sets[key][i + n_inserted])  # copy event
+                    insert!(data_sets[key], data_sets[key][i + n_inserted], (i+1) + 1 + n_inserted)  # copy event
+                end
+                data_sets["shower_energies"][(i+1) + 1 + n_inserted] = (1 - data_sets["inelasticity"][(i+1) + 1 + n_inserted]) * data_sets["energies"][(i+1) + 1 + n_inserted]
+                data_sets["shower_type"][(i+1) + 1 + n_inserted] = "em"
+                n_inserted += 1
+            end
+        end
+
+
+        #if((n_batches-1) == 1)
+        #    data_sets_fiducial = data_sets
+        #else
+        #    for key in data_sets
+        #        if(key ∉ data_sets_fiducial)
+        #            data_sets_fiducial[key] = []
+        #        end
+        #        vcat(data_sets_fiducial[key], data_sets[key])
+        #    end
+        #end
+
     end
 
-    time_per_evt = time_proposal / (n_events + 1)
+    #time_per_evt = time_proposal / (n_events + 1)
 
     # assign every shower a unique ID
     """
@@ -121,13 +151,9 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     for (key, value) in
     """
-
+    print(length(data_sets_fiducial["energies"]))
     CSV.write("data_output.csv", data_sets_fiducial, header=false)
     CSV.write("attributes_output.csv", attributes, header=false)
 end
 
-#this describes the volume of the simulation
-vol = Dict("fiducial_rmin" => 0, "fiducial_rmax" => 5, "fiducial_zmin" => -2.7, "fiducial_zmax" => 0)
-# The paramets in order of the following input are n_events, Emin, Emax,
-# volume (Dict, found above), and interaction_type ("cc", "nc", or "ccnc")
-data, att = generate_eventlist_cylinder(10, 1e18, 1e19, vol, "ccnc")
+end
