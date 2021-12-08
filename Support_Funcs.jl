@@ -2,10 +2,10 @@ using Distributions
 using Interpolations
 using ArgParse
 
+"""
+Get nature of interaction current: cc or nc
+"""
 function get_ccnc(n_events)
-    """
-    Get nature of interaction current: cc or nc
-    """
     random_sequence = rand(Uniform(0.0, 1.0), n_events)
     ccnc = []
     for (i, r) in enumerate(random_sequence)
@@ -19,10 +19,10 @@ function get_ccnc(n_events)
     return ccnc
 end
 
+"""
+Standard inelasticity for deep inelastic scattering
+"""
 function get_neutrino_inelasticity(n_events)
-    """
-    Standard inelasticity for deep inelastic scattering
-    """
     R1 = 0.36787944
     R2 = 0.63212056
     inelasticities = (-log.(R1 .+ (rand(Uniform(0.0, 1.0), n_events).*R2))).^2.5
@@ -40,18 +40,21 @@ function get_energy_from_flux(Emin, Emax, n_events, flux)
     return inv_cdf(r)
 end
 
+"""
+Generates a random distribution of energies following a certain spectrum
+
+Params
+Emin, Emax: float
+n_event: int
+flux: function
+"""
 function get_energies(n_events, Emin, Emax, spectrum_type)
-    """
-    Generates a random distribution of energies following a certain spectrum
-
-    Params
-    Emin, Emax: float
-    n_event: int
-    flux: function
-    """
-
     if spectrum_type == "log_uniform"
+        if Emin == Emax
+                energies = 10 .^ (repeat([log10(Emin)], n_events))
+        else
         energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
+        end
     elseif startswith(spectrum_type, "E-") # generate an E^gamma spectrum
         gamma = float(spectrum_type[2:end])
         gamma += 1
@@ -83,13 +86,13 @@ function get_energies(n_events, Emin, Emax, spectrum_type)
     return energies
 end
 
+"""
+Interprets volume input.
+volume: dictionary
+proposal: bool
+attributes: dictionary
+"""
 function set_volume_attributes(volume, attributes)
-    """
-    Interprets volume input.
-    volume: dictionary
-    proposal: bool
-    attributes: dictionary
-    """
     n_events = attributes["n_events"]
 
     if (haskey(volume, "fiducial_rmax")) #user specifies a cylinder
@@ -181,12 +184,11 @@ function set_volume_attributes(volume, attributes)
     return attributes
 end
 
+"""
+Generates vertex positions randomly distributed in simulation volume
+and outputs relevent quantities.
+"""
 function generate_vertex_positions(attributes, n_events)
-    """
-    Generates vertex positions randomly distributed in simulation volume
-    and outputs relevent quantities.
-    """
-
     if (haskey(attributes, "fiducial_rmax"))
         rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
         phiphi = rand(Uniform(0, 2*pi), n_events)
