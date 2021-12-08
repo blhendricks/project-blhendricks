@@ -88,25 +88,30 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         data_sets["shower_type"] = repeat(["had"], n_events_batch)
 
         # now add EM showers if appropriate
-        print(data_sets["flavors"])
 
-        allequal_1(x) = all(y->y==x[1],x)
-        first_check = allequal_1((data_sets["interaction_type"] .== "cc")) & (data_sets["interaction_type"] .== "cc")[1] == 1
-        second_check =  allequal_1((abs.(data_sets["flavors"]) .== 12)) & (abs.(data_sets["flavors"]) .== 12)[1] == 1
-        em_shower_mask = first_check & second_check
+        #check which showers are electromagnetic by requiring an electron neutrino (12) and cc interaction
+        em_shower_mask = (data_sets["interaction_type"] .== "cc").*(abs.(data_sets["flavors"]) .== 12)
+        #print("mask = ", em_shower_mask, "\n")
 
         n_inserted = 0
-        if em_shower_mask
-            for i in 0:(n_events_batch - 1)  # loop over all events where an EM shower needs to be inserted
-                for key in data_sets
-                    #data_sets[key].insert((i+1) + 1 + n_inserted, data_sets[key][i + n_inserted])  # copy event
-                    insert!(data_sets[key], data_sets[key][i + n_inserted], (i+1) + 1 + n_inserted)  # copy event
-                end
-                data_sets["shower_energies"][(i+1) + 1 + n_inserted] = (1 - data_sets["inelasticity"][(i+1) + 1 + n_inserted]) * data_sets["energies"][(i+1) + 1 + n_inserted]
-                data_sets["shower_type"][(i+1) + 1 + n_inserted] = "em"
-                n_inserted += 1
+
+        #print(keepat!(collect(0:(n_events_batch - 1)), em_shower_mask))
+        #print(typeof(data_sets))
+
+        for i in keepat!(collect(0:(n_events_batch - 1)), em_shower_mask)  # loop over all events where an EM shower needs to be inserted
+            for (key, value) in data_sets
+                #data_sets[key].insert((i+1) + 1 + n_inserted, data_sets[key][i + n_inserted])  # copy event
+                print(key, "\n")
+                #print(data_sets[key])
+                print(data_sets[key], "\n")
+                insert!(data_sets[key], (i+1) + 1 + n_inserted, data_sets[key][(i+1) + n_inserted])  # copy event
+                print(data_sets[key], "\n\n")
             end
+            data_sets["shower_energies"][i + 1 + n_inserted] = (1 - data_sets["inelasticity"][i + 1 + n_inserted]) * data_sets["energies"][i + 1 + n_inserted]
+            data_sets["shower_type"][i + 1 + n_inserted] = "em"
+            n_inserted += 1
         end
+
 
 
         #if((n_batches-1) == 1)
