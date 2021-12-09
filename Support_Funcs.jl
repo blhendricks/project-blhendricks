@@ -7,16 +7,15 @@ Get nature of interaction current: cc or nc
 """
 function get_ccnc(n_events)
     random_sequence = rand(Uniform(0.0, 1.0), n_events)
-    ccnc = []
+    ccnc = fill("nc", 1, n_events)
+
     for (i, r) in enumerate(random_sequence)
         if(r <= 0.7064)
-            push!(ccnc, "cc")
-        else
-            push!(ccnc, "nc")
+            ccnc[i] = "cc"
         end
     end
 
-    return ccnc
+    return vec(ccnc) #cast as vector to avoid breaking other code
 end
 
 """
@@ -190,6 +189,8 @@ and outputs relevent quantities.
 """
 function generate_vertex_positions(attributes, n_events)
     if (haskey(attributes, "fiducial_rmax"))
+        print("rmin squared = ", attributes["rmin"]^2, "\n")
+        print("rmax squared = ", attributes["rmax"]^2, "\n")
         rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
         phiphi = rand(Uniform(0, 2*pi), n_events)
         xx = rr_full .* cos.(phiphi)
