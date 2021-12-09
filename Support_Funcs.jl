@@ -1,6 +1,8 @@
 using Distributions
 using Interpolations
 using ArgParse
+using Printf
+using HDF5
 
 """
 Get nature of interaction current: cc or nc
@@ -150,8 +152,6 @@ and outputs relevent quantities.
 """
 function generate_vertex_positions(attributes, n_events)
     if (haskey(attributes, "fiducial_rmax"))
-        print("rmin squared = ", attributes["rmin"]^2, "\n")
-        print("rmax squared = ", attributes["rmax"]^2, "\n")
         rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
         phiphi = rand(Uniform(0, 2*pi), n_events)
         xx = rr_full .* cos.(phiphi)
@@ -169,4 +169,111 @@ function generate_vertex_positions(attributes, n_events)
     end
 end
 
-#generate_vertex_positions(att, n_events)
+"""
+Writes NuRadioMC data to hdf5 file
+Can automatically split dataset up into multiple files for multiprocessing
+"""
+
+"""
+function write_events_to_hdf5(filename, data_sets, attributes, n_events_per_file=nothing,
+    start_file_id=0)
+
+    print("test\n\n\n")
+
+    n_events = attributes["n_events"]
+    total_number_of_events = attributes["n_events"]
+
+    if "start_event_id" ∉ keys(attributes)
+        attributes["start_event_id"] = 0
+    end
+
+    if n_events_per_file == nothing
+        n_events_per_file = n_events
+    else
+        n_events_per_file = round(Int, n_events_per_file)
+    end
+    iFile = -1
+    evt_id_first = data_sets["event_group_ids"][1]
+    evt_id_last_previous = 0 #save last ID of previous file
+    start_index = 0
+    n_events_total = 0
+
+    while true
+        iFile += 1
+        filename2 = filename
+        evt_ids_this_file = unique(data_sets["event_group_ids"])[iFile * n_events_per_file: (iFile+1)*n_events_per_file]
+        if(length(evt_ids_this_file) == 0)
+            break #no more events to write in file
+        end
+
+        if((iFile > 0) || (n_events_per_file < n_events))
+            filename2 = filename*@sprintf(".part%04d", iFile + start_file_id)
+        end
+        fout = h5open(filename2, "w")
+
+        attributes(fout)["VERSION MAJOR"] = 2
+        attributes(fout)["VERSION MAJOR"] = 2
+        attributes(fout)["header"] = """
+# all quantities are in the default NuRadioMC units (i.e., meters, radians and eV)
+# all geometry quantities are in the NuRadioMC default local coordinate system:
+#     coordinate origin is at the surface
+#     x axis is towards Easting, y axis towards Northing, z axis upwards
+#     zenith/theta angle is defined with respect to z axis, i.e. 0deg = upwards, 90deg = towards horizon, 180deg = downwards
+#     azimuth/phi angle counting northwards from East
+#
+# the collumns are defined as follows
+# 1. event id (integer)
+# 2. neutrino flavor (integer) encoded as using PDG numbering scheme, particles have positive sign, anti-particles have negative sign, relevant for us are:
+#       12: electron neutrino
+#       14: muon neutrino
+#       16: tau neutrino
+# 3. energy of neutrino (double)
+# 4. charge or neutral current interaction (string, one of ['cc', 'nc']
+# 5./6./7. position of neutrino interaction vertex in cartesian coordinates (x, y, z) (in default NuRadioMC local coordinate system)
+# 8. zenith/theta angle of neutrino direction (pointing to where it came from, i.e. opposite to the direction of propagation)
+# 9. azimuth/phi angle of neutrino direction (pointing to where it came from, i.e. opposite to the direction of propagation)
+# 10. inelasticity (the fraction of neutrino energy that goes into the hadronic part)
+#
+"""
+        for (key, value) in collect(attributes)
+            attributes(fout)[key] = value
+        end
+        attributes(fout)["total_number_of_events"] = total_number_of_events
+
+        evt_id_first = evt_ids_this_file[1]
+        evt_id_last = last(evt_ids_this_file)
+
+        tmp = dropdims(findall(x->x==evt_id_last, data_sets["event_group_ids"]), tuple(findall(size(a) .== 1)...))
+        if size(tmp) == (1,)
+            stop_index = last(tmp) + 1
+        end
+
+        for (key, value) in collect(data_sets)
+            fout[key] = value[start_index: stop_index]
+        end
+
+        evt_ids_next_file =unique(data_sets["event_group_ids"])[(iFile+1) * n_events_per_file: (iFile+2) * n_events_per_file]
+        n_events_this_file = nothing
+        if (iFile == 0 && length(evt_ids_next_file) == 0)
+            n_events_this_file = total_number_of_events
+        elseif (length(evt_ids_next_file) == 0)
+            n_events_this_file = total_number_of_events - (evt_id_last_previous + 1) + attributes["start_event_id"]
+        elseif (iFile == 0)
+            n_events_this_file = evt_id_last - attributes["start_event_id"] + 1
+        else
+            n_events_this_file = evt_id_last - evt_id_last_previous
+        end
+
+        attributes(fout)["n_events"] = n_events_this_file
+        fout.close()
+        n_events_total += n_events_this_file
+
+        start_index = stop_index
+
+        evt_id_last_previous = evt_id_last
+        if (evt_id_last == n_events)
+            break
+        end
+    end
+end
+"""
