@@ -17,17 +17,16 @@ Generates neutrino interactions (vertex positions, neutrino directions,
 neutrino flavor, charged/neutral current).
 """
 
-function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
-    Emax::Float64, volume, interaction_type, thetamin=0, thetamax = 1*pi,
+function generate_eventlist_cylinder(n_events, Emin::Float64,
+    Emax::Float64, volume, interaction_type, thetamin=0.0, thetamax = 1*pi,
     phimin=0, phimax=2*pi, start_event_id=1, flavor=[12,-12,14,-14,16,-16],
     n_events_per_file=nothing, start_file_id=0, max_n_events_batch=1e5,
     write_events= true)
 
     attributes = Dict()
-    #n_events = Int(n_events)
 
     attributes["start_event_id"] = start_event_id::Int
-    attributes["n_events"] = n_events::Int
+    attributes["n_events"] = Int(n_events) #ensure type stability
     attributes["flavors"] = flavor::Vector{Int64}
     attributes["Emin"] = Emin::Float64
     attributes["Emax"] = Emax::Float64
@@ -65,13 +64,13 @@ function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
         data_sets["zeniths"] = acos.(rand(Uniform(cos(thetamax), cos(thetamin)), n_events_batch)).^0.5
 
         #label each event with an ID
-        data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch)).+start_event_id
+        data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch)-1).+start_event_id
         #count number of interactions(?)
         data_sets["n_interaction"] = ones(Int, n_events_batch)
         data_sets["vertex_times"] = zeros(Float64, n_events_batch)
 
         #generate neutrino flavors randomly
-        p = repeat([1/length(flavors)], length(flavors)) #create probability vector for flavors
+        p = repeat([1/length(flavor)], length(flavor)) #create probability vector for flavors
         rng = Categorical(p)
         data_sets["flavors"] = flavor[rand(rng, n_events_batch)]
 
@@ -122,10 +121,6 @@ function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
 
     end
 
-    # assign every shower a unique ID
-    """
-    data_sets_fiducial["shower_ids"] = collect(range(0, step=1, length(data_sets_fiducial["shower_energies"])))
-    """
     # make event group ids consecutive - useful if secondary interactions simulated
     # where many of the initially generated neutrinos don't end up in fiducial vol
     for (key, value) in data_sets
@@ -142,16 +137,14 @@ function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
         end
     end
 
+    # assign every shower a unique ID
+    data_sets_fiducial["shower_ids"] = collect(range(0, step=1, length(data_sets_fiducial["shower_energies"])))
+    # make the event group ids consecutive, this is useful if secondary interactions are simulated where many of the
+    # initially generated neutrinos don't end up in the fiducial volume
     data_sets_fiducial["event_group_ids"] = uegids_inverse .+ start_event_id
-    """
-    Will put in option to write to file later
-    if(write_events): ...
 
-    for (key, value) in
     """
-    #print(length(data_sets_fiducial["energies"]))
-    #print("\n\n", data_sets_fiducial, "\n")
-    """
+    NOT CURRENTLY WORKING:
     if write_events
         write_events_to_hdf5(filename="testing", data_sets=data_sets_fiducial,
             attributes=attributes, n_events_per_file=n_events_per_file,
@@ -162,5 +155,16 @@ function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
     CSV.write("data_output.csv", data_sets_fiducial, header=false)
     CSV.write("attributes_output.csv", attributes, header=false)
 end
+
+vol = Dict("fiducial_rmin" => 0.0, "fiducial_rmax" => 5000.0, "fiducial_zmin" => -2700, "fiducial_zmax" => 0.0)
+
+function benchmark_my_function(f::Function, num_list::Vector{T} ) where { T<:Integer }
+	times_list = zeros(length(num_list))
+	for (i,n) in enumerate(num_list)
+		times_list[i] = @belapsed $f($n, 1e18, 1e18, vol, "ccnc")
+	end
+	return (;num_list, times_list)
+end
+
 
 end
