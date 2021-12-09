@@ -8,6 +8,7 @@ using Interpolations
 using ArgParse
 using CSV, Tables
 using DataFrames
+using HDF5
 
 include("./Support_Funcs.jl")
 
@@ -18,7 +19,8 @@ neutrino flavor, charged/neutral current).
 
 function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     interaction_type, thetamin=0, thetamax = 1*pi, phimin=0, phimax=2*pi,
-    start_event_id=1, flavor=[12,-12,14,-14,16,-16], max_n_events_batch=1e5, write_events= true)
+    start_event_id=1, flavor=[12,-12,14,-14,16,-16], n_events_per_file=nothing,
+    start_file_id=0, max_n_events_batch=1e5, write_events= true)
 
     t_start = time()
     #attributes = Dict{String, Float64}()
@@ -63,9 +65,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         # generate neutrino vertices randomly
         data_sets["azimuths"] = rand(Uniform(phimin, phimax), n_events_batch)
         # zenith directions are distributed as sin(theta) (to make dist. isotropic) * cos(theta) (to acc for projection onto surf)
-        print("\n\n", thetamin)
         data_sets["zeniths"] = acos.(rand(Uniform(cos(thetamax), cos(thetamin)), n_events_batch)).^0.5
-        print("\n\n", data_sets["zeniths"])
 
         #label each event with an ID
         data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch)).+start_event_id
@@ -156,8 +156,18 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     """
     #print(length(data_sets_fiducial["energies"]))
     #print("\n\n", data_sets_fiducial, "\n")
-    CSV.write("data_output.csv", data_sets_fiducial, header=false)
-    CSV.write("attributes_output.csv", attributes, header=false)
+    print("\n\n\n")
+
+    """
+    if write_events
+        write_events_to_hdf5(filename="testing", data_sets=data_sets_fiducial,
+            attributes=attributes, n_events_per_file=n_events_per_file,
+            start_file_id=start_file_id)
+    end
+    """
+
+    #CSV.write("data_output.csv", data_sets_fiducial, header=false)
+    #CSV.write("attributes_output.csv", attributes, header=false);
 end
 
 end
