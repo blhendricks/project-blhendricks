@@ -3,11 +3,12 @@ using Interpolations
 using ArgParse
 using Printf
 using HDF5
+using BenchmarkTools
 
 """
 Get nature of interaction current: cc or nc
 """
-function get_ccnc(n_events)
+function get_ccnc(n_events::Int)
     random_sequence = rand(Uniform(0.0, 1.0), n_events)
     ccnc = fill("nc", 1, n_events)
 
@@ -23,7 +24,7 @@ end
 """
 Standard inelasticity for deep inelastic scattering
 """
-function get_neutrino_inelasticity(n_events)
+function get_neutrino_inelasticity(n_events::Int)
     R1 = 0.36787944
     R2 = 0.63212056
     inelasticities = (-log.(R1 .+ (rand(Uniform(0.0, 1.0), n_events).*R2))).^2.5
@@ -38,11 +39,11 @@ Emin, Emax: float
 n_event: int
 flux: function
 """
-function get_energies(n_events, Emin, Emax)
+function get_energies(n_events::Int, Emin::Float64, Emax::Float64)
     if Emin == Emax
-            energies = 10 .^ (repeat([log10(Emin)], n_events))
+            energies = 10.0 .^ (repeat([log10(Emin)], n_events))
     else
-    energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
+    energies = 10.0 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
     end
 
     return energies
@@ -61,30 +62,30 @@ function set_volume_attributes(volume, attributes)
         if (haskey(volume, "fiducial_rmin"))
             attributes["fiducial_rmin"] = volume["fiducial_rmin"]
         else
-            attributes["fiducial_rmin"] = 0
+            attributes["fiducial_rmin"] = 0.0
         end
 
         attributes["fiducial_rmax"] = volume["fiducial_rmax"]
         attributes["fiducial_zmin"] = volume["fiducial_zmin"]
         attributes["fiducial_zmax"] = volume["fiducial_zmax"]
 
-        rmin = attributes["fiducial_rmin"]
-        rmax = attributes["fiducial_rmax"]
-        zmin = attributes["fiducial_zmin"]
-        zmax = attributes["fiducial_zmax"]
+        rmin = float(attributes["fiducial_rmin"])
+        rmax = float(attributes["fiducial_rmax"])
+        zmin = float(attributes["fiducial_zmin"])
+        zmax = float(attributes["fiducial_zmax"])
         volume_fiducial = pi*(rmax^2 - rmin^2)*(zmax - zmin)
 
         if (haskey(volume, "full_rmax"))
-            rmax = volume["full_rmax"]
+            rmax = float(volume["full_rmax"])
         end
         if (haskey(volume, "full_rmin"))
-            rmin = volume["full_rmin"]
+            rmin = float(volume["full_rmin"])
         end
         if (haskey(volume, "full_zmax"))
-            zmax = volume["full_zmax"]
+            zmax = float(volume["full_zmax"])
         end
         if (haskey(volume, "full_zmin"))
-            zmin = volume["full_zmin"]
+            zmin = float(volume["full_zmin"])
         end
 
         volume_full = pi*(rmax^2 - rmin^2)*(zmax - zmin)
@@ -101,12 +102,12 @@ function set_volume_attributes(volume, attributes)
         attributes["volume"]  = V #save full sim vol to simplify eff vol calc
         attributes["area"] = pi*(rmax^2 - rmin^2)
     elseif (haskey(volume, "fiducial_xmax")) #user specifies a cube
-        attributes["fiducial_xmax"] = volume["fiducial_xmax"]
-        attributes["fiducial_xmin"] = volume["fiducial_xmin"]
-        attributes["fiducial_ymax"] = volume["fiducial_ymax"]
-        attributes["fiducial_ymin"] = volume["fiducial_ymin"]
-        attributes["fiducial_zmin"] = volume["fiducial_zmin"]
-        attributes["fiducial_zmax"] = volume["fiducial_zmax"]
+        attributes["fiducial_xmax"] = float(volume["fiducial_xmax"])
+        attributes["fiducial_xmin"] = float(volume["fiducial_xmin"])
+        attributes["fiducial_ymax"] = float(volume["fiducial_ymax"])
+        attributes["fiducial_ymin"] = float(volume["fiducial_ymin"])
+        attributes["fiducial_zmin"] = float(volume["fiducial_zmin"])
+        attributes["fiducial_zmax"] = float(volume["fiducial_zmax"])
 
         xmin = attributes["fiducial_xmin"]
         xmax = attributes["fiducial_xmax"]
@@ -116,12 +117,12 @@ function set_volume_attributes(volume, attributes)
         zmax = attributes["fiducial_zmax"]
         volume_fiducial = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
         if (haskey(volume, "full_xmax"))
-            xmin = volume["full_xmin"]
-            xmax = volume["full_xmax"]
-            ymin = volume["full_ymin"]
-            ymax = volume["full_ymax"]
-            zmin = volume["full_zmin"]
-            zmax = volume["full_zmax"]
+            xmin = float(volume["full_xmin"])
+            xmax = float(volume["full_xmax"])
+            ymin = float(volume["full_ymin"])
+            ymax = float(volume["full_ymax"])
+            zmin = float(volume["full_zmin"])
+            zmax = float(volume["full_zmax"])
         end
 
         volume_full = (xmax - xmin) * (ymax - ymin) * (zmax - zmin)
@@ -150,7 +151,7 @@ end
 Generates vertex positions randomly distributed in simulation volume
 and outputs relevent quantities.
 """
-function generate_vertex_positions(attributes, n_events)
+function generate_vertex_positions(attributes, n_events::Int)
     if (haskey(attributes, "fiducial_rmax"))
         rr_full = rand(Uniform(attributes["rmin"]^2, attributes["rmax"]^2), n_events).^0.5
         phiphi = rand(Uniform(0, 2*pi), n_events)
@@ -168,6 +169,7 @@ function generate_vertex_positions(attributes, n_events)
         throw(DomainError())
     end
 end
+
 
 """
 Writes NuRadioMC data to hdf5 file
