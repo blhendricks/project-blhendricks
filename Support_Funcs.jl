@@ -28,17 +28,6 @@ function get_neutrino_inelasticity(n_events)
     return inelasticities
 end
 
-function get_energy_from_flux(Emin, Emax, n_events, flux)
-    xx_edges = collect(range(Emin, Emax, 10000000))
-    xx = 0.5 * (xx_edges[2:end] .+ xx_edges[1:(end-1)])
-    yy = flux(xx)
-    cum_values = zeros(size(xx_edges))
-    cum_values[2:end] = cumsum(yy * diff(xx_edges))
-    inv_cdf = LinearInterpolation(cum_values, xx_edges)
-    r = rand(Uniform(0, maximum(cum_values)), n_events)
-    return inv_cdf(r)
-end
-
 """
 Generates a random distribution of energies following a certain spectrum
 
@@ -47,41 +36,13 @@ Emin, Emax: float
 n_event: int
 flux: function
 """
-function get_energies(n_events, Emin, Emax, spectrum_type)
-    if spectrum_type == "log_uniform"
-        if Emin == Emax
-                energies = 10 .^ (repeat([log10(Emin)], n_events))
-        else
-        energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
-        end
-    elseif startswith(spectrum_type, "E-") # generate an E^gamma spectrum
-        gamma = float(spectrum_type[2:end])
-        gamma += 1
-        Nmin = (Emin)^gamma
-        Nmax = (Emax)^gamma
-
-        function get_inverse_spectrum(N, gamma)
-            return exp(log(N)/gamma)
-        end
-
-        energies = get_inverse_spectrum(rand(Uniform(Nmax, Nmin), n_events), gamma)
-
-    elseif spectrum_type == "GZK-1"
-        energies = get_energy_from_flux(Emin, Emax, n_events, get_GZK_1)
-    elseif spectrum_type == "IceCube-nu-2017"
-        energies = get_energy_from_flux(Emin, Emax, n_events, ice_cube_nu_fit)
-    elseif spectrum_type == "GZK-1+IceCube-nu-2017"
-
-        function J(E)
-            return ice_cube_nu_fit(E) + get_GZK_1(E)
-        end
-
-        energies = get_energy_from_flux(Emin, Emax, n_events, J)
+function get_energies(n_events, Emin, Emax)
+    if Emin == Emax
+            energies = 10 .^ (repeat([log10(Emin)], n_events))
     else
-        println("Passed spectrum not implemented.")
-        throw(DomainError())
-        #throw("unimplemented") more appropriate?
+    energies = 10 .^ (rand(Uniform(log10(Emin), log10(Emax)), n_events))
     end
+
     return energies
 end
 
