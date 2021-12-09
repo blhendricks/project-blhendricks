@@ -17,21 +17,20 @@ Generates neutrino interactions (vertex positions, neutrino directions,
 neutrino flavor, charged/neutral current).
 """
 
-function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
-    interaction_type, thetamin=0, thetamax = 1*pi, phimin=0, phimax=2*pi,
-    start_event_id=1, flavor=[12,-12,14,-14,16,-16], n_events_per_file=nothing,
-    start_file_id=0, max_n_events_batch=1e5, write_events= true)
+function generate_eventlist_cylinder(n_events::Integer, Emin::Float64,
+    Emax::Float64, volume, interaction_type, thetamin=0, thetamax = 1*pi,
+    phimin=0, phimax=2*pi, start_event_id=1, flavor=[12,-12,14,-14,16,-16],
+    n_events_per_file=nothing, start_file_id=0, max_n_events_batch=1e5,
+    write_events= true)
 
-    t_start = time()
-    #attributes = Dict{String, Float64}()
     attributes = Dict()
-    n_events = Int(n_events)
+    #n_events = Int(n_events)
 
-    attributes["start_event_id"] = start_event_id
-    attributes["n_events"] = n_events
-    attributes["flavors"] = flavor
-    attributes["Emin"] = Emin
-    attributes["Emax"] = Emax
+    attributes["start_event_id"] = start_event_id::Int
+    attributes["n_events"] = n_events::Int
+    attributes["flavors"] = flavor::Vector{Int64}
+    attributes["Emin"] = Emin::Float64
+    attributes["Emax"] = Emax::Float64
     attributes["thetamin"] = thetamin
     attributes["thetamax"] = thetamax
     attributes["phimin"] = phimin
@@ -39,8 +38,6 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     data_sets = Dict()
     data_sets_fiducial = Dict()
-
-    time_proposal = 0
 
     #generate detector volume attributes
     attributes = set_volume_attributes(volume, attributes)
@@ -74,7 +71,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         data_sets["vertex_times"] = zeros(Float64, n_events_batch)
 
         #generate neutrino flavors randomly
-        p = repeat([1/6], 6) #create probability vector for flavors
+        p = repeat([1/length(flavors)], length(flavors)) #create probability vector for flavors
         rng = Categorical(p)
         data_sets["flavors"] = flavor[rand(rng, n_events_batch)]
 
@@ -125,8 +122,6 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     end
 
-    #time_per_evt = time_proposal / (n_events + 1)
-
     # assign every shower a unique ID
     """
     data_sets_fiducial["shower_ids"] = collect(range(0, step=1, length(data_sets_fiducial["shower_energies"])))
@@ -156,8 +151,6 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     """
     #print(length(data_sets_fiducial["energies"]))
     #print("\n\n", data_sets_fiducial, "\n")
-    print("\n\n\n")
-
     """
     if write_events
         write_events_to_hdf5(filename="testing", data_sets=data_sets_fiducial,
@@ -166,8 +159,8 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     end
     """
 
-    #CSV.write("data_output.csv", data_sets_fiducial, header=false)
-    #CSV.write("attributes_output.csv", attributes, header=false);
+    CSV.write("data_output.csv", data_sets_fiducial, header=false)
+    CSV.write("attributes_output.csv", attributes, header=false)
 end
 
 end
