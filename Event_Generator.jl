@@ -68,7 +68,7 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
         print("\n\n", data_sets["zeniths"])
 
         #label each event with an ID
-        data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch-1)).+start_event_id
+        data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch)).+start_event_id
         #count number of interactions(?)
         data_sets["n_interaction"] = ones(Int, n_events_batch)
         data_sets["vertex_times"] = zeros(Float64, n_events_batch)
@@ -111,16 +111,17 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
             n_inserted += 1
         end
 
-        #if((n_batches-1) == 1)
-        #    data_sets_fiducial = data_sets
-        #else
-        #    for key in data_sets
-        #        if(key ∉ data_sets_fiducial)
-        #            data_sets_fiducial[key] = []
-        #        end
-        #        vcat(data_sets_fiducial[key], data_sets[key])
-        #    end
-        #end
+        if n_batches == 1
+            data_sets_fiducial = data_sets
+        else
+            for (key, value) in data_sets
+                if key ∉ keys(data_sets_fiducial)
+                    data_sets_fiducial[key] = data_sets[key]
+                else
+                    vcat(data_sets_fiducial[key], data_sets[key])
+                end
+            end
+        end
 
     end
 
