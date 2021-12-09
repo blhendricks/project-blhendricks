@@ -18,8 +18,7 @@ neutrino flavor, charged/neutral current).
 
 function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
     interaction_type, thetamin=0, thetamax = 1*pi, phimin=0, phimax=2*pi,
-    start_event_id=1, flavor=[12,-12,14,-14,16,-16], spectrum="log_uniform",
-    max_n_events_batch=1e5, write_events= true)
+    start_event_id=1, flavor=[12,-12,14,-14,16,-16], max_n_events_batch=1e5, write_events= true)
 
     t_start = time()
     #attributes = Dict{String, Float64}()
@@ -59,12 +58,14 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
         #generate vertex positions in cartesian coordinates
         data_sets["xx"], data_sets["yy"], data_sets["zz"] = generate_vertex_positions(attributes, n_events_batch)
-        data_sets["zz"] = zero(data_sets["zz"]) #muons interact at the surface so zz => 0
+        #data_sets["zz"] = zero(data_sets["zz"]) #muons interact at the surface so zz => 0
 
         # generate neutrino vertices randomly
         data_sets["azimuths"] = rand(Uniform(phimin, phimax), n_events_batch)
         # zenith directions are distributed as sin(theta) (to make dist. isotropic) * cos(theta) (to acc for projection onto surf)
-        data_sets["zeniths"] = asin.(rand(Uniform(sin(thetamin)^2, sin(thetamax)^2), n_events_batch)).^0.5
+        print("\n\n", thetamin)
+        data_sets["zeniths"] = acos.(rand(Uniform(cos(thetamax), cos(thetamin)), n_events_batch)).^0.5
+        print("\n\n", data_sets["zeniths"])
 
         #label each event with an ID
         data_sets["event_group_ids"] = collect((i_batch*max_n_events_batch):((i_batch*max_n_events_batch)+n_events_batch-1)).+start_event_id
@@ -74,10 +75,11 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
         #generate neutrino flavors randomly
         p = repeat([1/6], 6) #create probability vector for flavors
-        data_sets["flavors"] = flavor[rand(Categorical(p), n_events_batch)]
+        rng = Categorical(p)
+        data_sets["flavors"] = flavor[rand(rng, n_events_batch)]
 
         #generate neutrino energies randomly
-        data_sets["energies"] = get_energies(n_events_batch, Emin, Emax, spectrum)
+        data_sets["energies"] = get_energies(n_events_batch, Emin, Emax)
 
         #generate charged/neutral current randomly
         if interaction_type == "ccnc"
@@ -151,7 +153,8 @@ function generate_eventlist_cylinder(n_events, Emin, Emax, volume,
 
     for (key, value) in
     """
-    print(length(data_sets_fiducial["energies"]))
+    #print(length(data_sets_fiducial["energies"]))
+    #print("\n\n", data_sets_fiducial, "\n")
     CSV.write("data_output.csv", data_sets_fiducial, header=false)
     CSV.write("attributes_output.csv", attributes, header=false)
 end
